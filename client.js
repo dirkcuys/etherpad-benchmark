@@ -1,67 +1,80 @@
 const puppeteer = require('puppeteer');
 const zmq = require("zeromq");
 const os = require('os');
+const yargs = require('yargs');
 
-async function runClient(){
+const argv = yargs
+  .option('cc-address', {
+    alias: 'b',
+    description: 'Address of the control server',
+    default: '127.0.0.1',
+    type: 'string',
+  })
+  .help()
+  .alias('help', 'h')
+  .argv;
+
+
+/* Loads an etherpad and returns the page object when the pad is ready to receive input */
+async function loadEtherpad(page, url){
+  //page.on('request', req => console.log(`${req.method()}: ${req.url()}`));
+  //page.on('load', event => console.log('page loaded'));
+
+  // add lister to wait for ace-inner iframe
+  let aceInner = new Promise((resolve, reject) => {
+    page.on('frameattached', frame => {
+      if (frame.parentFrame() && frame.parentFrame().name() == 'ace_outer'){
+        resolve(frame);
+        //console.log('ace_inner attached');
+      }
+    });
+  });
+
+  page.goto(url, {timeout: 0, waitUntil: 'networkidle0'});
+  frame = await aceInner;
+  await frame.waitForSelector('.ace-line');
+  return page;
+}
+
+async function babble(page){
+  const c = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789            ';
+  let count = 0;
+  let lines = 60*(1 + Math.random())/2;
+  for (i=0; i < lines; ++i){
+    let s = [...Array(Math.round(8 + Math.random()*72))].map(_ => c[~~(Math.random()*c.length)]).join('');
+    count += s.length;
+    await page.keyboard.type(`${s}\n`, {delay: 10});
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  return count;
+};
+
+async function runClient(ccHost){
+  // This topic is unique to this worker
   let topic = `worker-${os.hostname()}-${process.pid}`;
-  let ccHost = 'tcp://127.0.0.1'
-  const sock = new zmq.Subscriber
-  sock.connect(`${ccHost}:3001`)
-  sock.subscribe(topic)
-  console.log("Subscribe socket connected")
 
-  const ccSock = new zmq.Push
-  await ccSock.connect(`${ccHost}:3000`)
-  console.log("CC link established")
+  // socket for receiving commands
+  const sock = new zmq.Subscriber;
+  sock.connect(`${ccHost}:3001`);
+  sock.subscribe(topic);
+  console.log("Subscribe socket connected");
 
+  // socket for coordination
+  const ccSock = new zmq.Push;
+  await ccSock.connect(`${ccHost}:3000`);
+  console.log("CC link established");
+
+  const reSock = new zmq.Push;
+  await reSock.connect(`${ccHost}:3002`);
+
+  // start up headless chrome
   const opts = {
     timeout: 10000,
     //headless: false,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   };
-
   let browser = await puppeteer.launch(opts);
   let page = await browser.newPage();
-
-  //page.on('request', req => console.log(`${req.method()}: ${req.url()}`));
-  page.on('load', event => console.log('page loaded'));
-
-  let theCarrot = new Promise((resolve, reject) => {
-    page.on('requestfinished', request => {
-      if (request.url().search(/caretPosition.js/) >= 0){
-        console.log('Whats up doc');
-        resolve();
-      }
-    });
-  });
-
-
-  // wait for ace-inner iframe
-  let aceInner = new Promise((resolve, reject) => {
-    page.on('frameattached', frame => {
-      console.log(frame.name());
-      if (frame.parentFrame() && frame.parentFrame().name() == 'ace_outer'){
-        resolve(frame);
-        console.log('ace_inner attached');
-      } else if (frame.parentFrame()){
-        console.log(frame.parentFrame().name());
-      }
-    });
-  });
-
-  let pageUrl = `https://unhangpad.code27.co.za/p/testpad`;
-  console.log(`Goto ${pageUrl}`);
-  //await page.tracing.start({path: 'trace.json'});
-  page.goto(pageUrl, {timeout: 0, waitUntil: 'networkidle0'});
-  //page.goto(pageUrl);
-  //await page.tracing.stop();
-  
-  frame = await aceInner;
-  //const frame = page.frames().find(frame => frame.name() === 'ace_inner');
-  await frame.waitForSelector('.ace-line');
-  console.log("ace-lines");
-  //await theCarrot;
-  await new Promise((res, rej) => setTimeout(res, 2000));
 
   await ccSock.send(topic);
   console.log(`${topic} ready to do some etherpadding`);
@@ -69,13 +82,28 @@ async function runClient(){
   await new Promise(async (resolve, reject) =>{
     try {
       for await (const [topic, msg] of sock) {
-        if (msg.toString() == 'done'){
-          console.log('My work is done here!');
+        console.log(msg.toString());
+        const command = JSON.parse(msg.toString());
+        if (command.url){
+          //await page.tracing.start({path: 'trace.json'});
+          const start = new Date;
+          await loadEtherpad(page, command.url);
+          const loadTime = new Date() - start
+          //await page.tracing.stop();
+          console.log(`It took ${loadTime}ms to load Etherpad`);
+          let characterCount = await babble(page);
+          console.log(`Finished sending ${characterCount} characters to etherpad`);
           await sock.close();
+          await reSock.send(JSON.stringify({
+            loadTime,
+            characterCount,
+            worker: topic,
+          }));
+          await reSock.close();
           resolve();
+          break;
         } else {
-          console.log("happily typing: %s", msg.toString());
-          await page.keyboard.type(msg.toString(), {delay: 20});
+          console.log('Unknown command');
         }
       }
     } catch (e) {
@@ -83,23 +111,14 @@ async function runClient(){
     }
   });
 
-  await new Promise((res, rej) => setTimeout(res, 10000));
-
-  //dumpFrameTree(page.mainFrame(), '');
-  function dumpFrameTree(frame, indent) {
-    console.log(indent + frame.url());
-    for (let child of frame.childFrames())
-      dumpFrameTree(child, indent + '  ');
-  }
-
   await browser.close();
 };
 
 (async () => {
   try {
-    await runClient();
+    let ccHost = `tcp://${argv['cc-address']}`
+    await runClient(ccHost);
   } catch (e) {
-    // Deal with the fact the chain failed
     console.log(e);
   }
 })();
