@@ -39,10 +39,11 @@ const argv = yargs
     description: 'Etherpad API KEY',
     type: 'string',
   })
-  .option('required-workers', {
+  .option('max-workers', {
     alias: 'w',
     type: 'int',
-    default: 10,
+    default: 0,
+    description: 'Max number of workers to run, 0 disables the limit.',
   })
   .help()
   .alias('help', 'h')
@@ -75,12 +76,16 @@ async function createPad(serverUrl, apikey, padID, text){
     req.end();
   });
   console.log(response);
+  return `${serverUrl}/p/${padID}`;
 }
 
 async function runServer(bindAddress, etherpadServer){
   const apikey = argv['etherpad-api-key'];
-  const requiredWorkers = argv['required-workers'];
-  await createPad(etherpadServer, apikey, 'test112233', 'This is a new pad to be used for testing');
+  const maxWorkers = argv['max-workers'];
+
+  let pads = new Map;
+  let padUrl = await createPad(etherpadServer, apikey, 'test112233', 'This is a new pad to be used for testing');
+  pads.set(padUrl, {workers: []});
 
   let ccHost = `tcp://${bindAddress}`;
   // socket used to coordinate
@@ -95,17 +100,23 @@ async function runServer(bindAddress, etherpadServer){
 
   console.log(`Listening on ${ccHost}:3000, ${ccHost}:3001 and ${ccHost}:3002`);
   let workers = new Map;
-  for await (const [msg] of ccSock) {
+
+  // Create a promise chain to handle new workers
+  let workQueue = msg => {
     var topic = msg.toString();
     console.log("New worker connected: %s", topic);
+    // TODO Pick a pad
     let url = `${etherpadServer}/p/test112233`;
-    workers.set(topic, url);
+    workers.set(topic, {url});
     await sock.send([topic, JSON.stringify({url})]);
-    if (workers.size >= requiredWorkers) {
-      console.log('All needed workers aquired');
-      break;
+    if (maxWorkers && workers.size >= maxWorkers) {
+      console.log('Maximum workers limit reached, not accepting new connections.');
+      return ccSock.close();
+    } else {
+      return ccSock.receive().then(workQueue);
     }
-  }
+  };
+  let workerQueueDone = ccSock.receive().then(workQueue);
 
   console.log('waiting for results');
   for await (const [msg] of rSock) {
