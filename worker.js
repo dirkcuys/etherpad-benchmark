@@ -30,9 +30,9 @@ async function loadEtherpad(page, url){
     });
   });
 
-  page.goto(url, {timeout: 0, waitUntil: 'networkidle0'});
+  await page.goto(url, {timeout: 0, waitUntil: 'networkidle0'});
   frame = await aceInner;
-  await frame.waitForSelector('.ace-line');
+  await frame.waitForSelector('div');
   return page;
 }
 
@@ -85,20 +85,27 @@ async function runClient(ccHost){
         console.log(msg.toString());
         const command = JSON.parse(msg.toString());
         if (command.url){
-          //await page.tracing.start({path: 'trace.json'});
-          const start = new Date;
-          await loadEtherpad(page, command.url);
-          const loadTime = new Date() - start
-          //await page.tracing.stop();
-          console.log(`It took ${loadTime}ms to load Etherpad`);
-          let characterCount = await babble(page);
-          console.log(`Finished sending ${characterCount} characters to etherpad`);
+          try {
+            //await page.tracing.start({path: 'trace.json'});
+            const start = new Date;
+            await loadEtherpad(page, command.url);
+            const loadTime = new Date() - start
+            //await page.tracing.stop();
+            console.log(`It took ${loadTime}ms to load Etherpad`);
+            let characterCount = await babble(page);
+            console.log(`Finished sending ${characterCount} characters to etherpad`);
+            await reSock.send(JSON.stringify({
+              loadTime,
+              characterCount,
+              worker: topic.toString(),
+            }));
+          } catch (e) {
+            await reSock.send(JSON.stringify({
+              worker: topic.toString(),
+              error: e.toString(),
+            }));
+          }
           await sock.close();
-          await reSock.send(JSON.stringify({
-            loadTime,
-            characterCount,
-            worker: topic,
-          }));
           await reSock.close();
           resolve();
           break;

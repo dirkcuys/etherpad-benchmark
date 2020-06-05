@@ -1,1 +1,5 @@
 node_modules/
+vars.tfvars
+.terraform
+venv/
+package-lock.json
