@@ -79,7 +79,7 @@ async function runClient(ccHost){
   await ccSock.send(topic);
   console.log(`${topic} ready to do some etherpadding`);
 
-  await new Promise(async (resolve, reject) =>{
+  await new Promise(async (resolve, reject) => {
     try {
       for await (const [topic, msg] of sock) {
         console.log(msg.toString());
@@ -88,11 +88,15 @@ async function runClient(ccHost){
           try {
             //await page.tracing.start({path: 'trace.json'});
             const start = new Date;
-            await loadEtherpad(page, command.url);
+            await Promise.race([
+              loadEtherpad(page, command.url),
+              new Promise((resolve, reject) => setTimeout(reject, 30000)),
+            ]);
             const loadTime = new Date() - start
             //await page.tracing.stop();
             console.log(`It took ${loadTime}ms to load Etherpad`);
             let characterCount = await babble(page);
+            // Maybe add a max time here
             console.log(`Finished sending ${characterCount} characters to etherpad`);
             await reSock.send(JSON.stringify({
               loadTime,
