@@ -108,7 +108,7 @@ async function runServer(bindAddress, etherpadServer){
     // TODO Pick a pad
     let url = `${etherpadServer}/p/test112233`;
     workers.set(topic, {url});
-    await sock.send([topic, JSON.stringify({url})]);
+    sock.send([topic, JSON.stringify({url})]);
     if (maxWorkers && workers.size >= maxWorkers) {
       console.log('Maximum workers limit reached, not accepting new connections.');
       return ccSock.close();
