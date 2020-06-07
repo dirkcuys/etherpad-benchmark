@@ -3,3 +3,4 @@ vars.tfvars
 .terraform
 venv/
 package-lock.json
+*.swp
