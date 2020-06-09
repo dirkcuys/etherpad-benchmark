@@ -69,7 +69,6 @@ async function runClient(ccHost){
   // This topic is unique to this worker
   let topic = `worker-${os.hostname()}-${process.pid}`;
 
-  // socket for receiving commands
   const sock = new zmq.Request;
   sock.connect(`${ccHost}:3001`);
 
@@ -85,14 +84,15 @@ async function runClient(ccHost){
   let browser = await puppeteer.launch(opts);
   let page = await browser.newPage();
 
-  // request some work
-  await sock.send(topic);
-  console.log(`${topic} ready to do some etherpadding`);
-
-  const msg = await sock.receive();
-  console.log(msg.toString());
-  const command = JSON.parse(msg.toString());
   try {
+    // socket for receiving commands
+    // request some work
+    await sock.send(topic);
+    console.log(`${topic} ready to do some etherpadding`);
+
+    const msg = await timeout(sock.receive(), 5*60*1000, 'no work received.');
+    console.log(msg.toString());
+    const command = JSON.parse(msg.toString());
     //await page.tracing.start({path: 'trace.json'});
     const start = new Date;
     await timeout(loadEtherpad(page, command.url), maxWait, 'load timeout');
@@ -115,10 +115,11 @@ async function runClient(ccHost){
       worker: topic.toString(),
       error: e.toString(),
     }))
-  } 
-  await sock.close();
-  await reSock.close();
-  await browser.close();
+  } finally {
+    await sock.close();
+    await reSock.close();
+    await browser.close();
+  }
 };
 
 (async () => {
