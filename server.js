@@ -95,7 +95,7 @@ async function runServer(bindAddress, etherpadServer){
   const rSock = new zmq.Pull;
   await rSock.bind(`${ccHost}:3002`);
 
-  console.log(`Listening on ${ccHost}:3000, ${ccHost}:3001 and ${ccHost}:3002`);
+  console.log(`Listening on ${ccHost}:3001 and ${ccHost}:3002`);
   let workers = new Map;
   let workerCount = 0;
 
@@ -103,13 +103,14 @@ async function runServer(bindAddress, etherpadServer){
   let workQueue = msg => {
     var topic = msg.toString();
     workerCount++;
-    console.log("New worker connected: %s %i", topic, workerCount);
+    console.log(`${new Date().toISOString()}, connected, ${topic}, ${workerCount}`);
+
     // TODO Pick a pad
     let url = `${etherpadServer}/p/test112233`;
     workers.set(topic, {url});
     sock.send(JSON.stringify({url}));
     if (maxWorkers && workers.size >= maxWorkers) {
-      console.log('Maximum workers limit reached, not accepting new connections.');
+      console.log(`${new Date().toISOString()}, Maximum workers limit reached, not accepting new connections`);
       return sock.close();
     } else {
       return sock.receive().then(workQueue);
@@ -120,10 +121,13 @@ async function runServer(bindAddress, etherpadServer){
   console.log('waiting for results');
   for await (const [msg] of rSock) {
     var result = msg.toString();
-    console.log(result);
+    console.log(`${new Date().toISOString()}, result, ${result.worker}, ${result}`);
     workerCount--;
+    if (workerCount == 0 && maxWorkers){
+      console.log('Received all results');
+      break;
+    }
   };
-
 };
 
 (async () => {
