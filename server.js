@@ -45,6 +45,12 @@ const argv = yargs
     default: 0,
     description: 'Max number of workers to run, 0 disables the limit.',
   })
+  .option('pad-count', {
+    alias: 'p',
+    type: 'int',
+    default: 1,
+    description: 'Max number of workers to run, 0 disables the limit.',
+  })
   .help()
   .alias('help', 'h')
   .argv;
@@ -83,9 +89,12 @@ async function runServer(bindAddress, etherpadServer){
   const apikey = argv['etherpad-api-key'];
   const maxWorkers = argv['max-workers'];
 
-  let pads = new Map;
-  let padUrl = await createPad(etherpadServer, apikey, 'test112233', 'This is a new pad to be used for testing');
-  pads.set(padUrl, {workers: []});
+  let pads = {};
+  const padCount = argv['pad-count'];
+  for (let i = 0; i < padCount; i++){
+    let padUrl = await createPad(etherpadServer, apikey, `test-pad-${i}`, 'This is a new pad to be used for testing');
+    pads[padUrl] = {workers: []};
+  }
 
   let ccHost = `tcp://${bindAddress}`;
   // socket used to send work
@@ -105,8 +114,8 @@ async function runServer(bindAddress, etherpadServer){
     workerCount++;
     console.log(`${new Date().toISOString()}, connected, ${topic}, ${workerCount}`);
 
-    // TODO Pick a pad
-    let url = `${etherpadServer}/p/test112233`;
+    // Pick a pad
+    let url = Object.keys(pads)[Math.floor(Math.random() * Object.keys(pads).length)];
     workers.set(topic, {url});
     sock.send(JSON.stringify({url}));
     if (maxWorkers && workers.size >= maxWorkers) {
@@ -121,7 +130,8 @@ async function runServer(bindAddress, etherpadServer){
   console.log('waiting for results');
   for await (const [msg] of rSock) {
     var result = msg.toString();
-    console.log(`${new Date().toISOString()}, result, ${result.worker}, ${result}`);
+    let {worker} = JSON.parse(result);
+    console.log(`${new Date().toISOString()}, result, ${worker}, ${result}`);
     workerCount--;
     if (workerCount == 0 && workers.size == maxWorkers){
       console.log('Received all results');
