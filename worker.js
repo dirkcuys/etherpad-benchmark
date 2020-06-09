@@ -14,7 +14,7 @@ const argv = yargs
   .alias('help', 'h')
   .argv;
 
-const maxWait = 30000;
+const maxWait = 60*1000;
 
 function timeout(promise, ms, errorMsg){
   let timeoutHandle;
@@ -84,14 +84,15 @@ async function runClient(ccHost){
   let browser = await puppeteer.launch(opts);
   let page = await browser.newPage();
 
+  await sock.send(topic);
+  console.log(`${topic} ready to do some etherpadding`);
+
+  const msg = await timeout(sock.receive(), 5*60*1000, 'no work received.');
+  console.log(msg.toString());
+
   try {
     // socket for receiving commands
     // request some work
-    await sock.send(topic);
-    console.log(`${topic} ready to do some etherpadding`);
-
-    const msg = await timeout(sock.receive(), 5*60*1000, 'no work received.');
-    console.log(msg.toString());
     const command = JSON.parse(msg.toString());
     //await page.tracing.start({path: 'trace.json'});
     const start = new Date;
@@ -115,11 +116,10 @@ async function runClient(ccHost){
       worker: topic.toString(),
       error: e.toString(),
     }))
-  } finally {
-    await sock.close();
-    await reSock.close();
-    await browser.close();
   }
+  await sock.close();
+  await reSock.close();
+  await browser.close();
 };
 
 (async () => {
