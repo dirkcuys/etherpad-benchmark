@@ -123,7 +123,7 @@ async function runServer(bindAddress, etherpadServer){
     var result = msg.toString();
     console.log(`${new Date().toISOString()}, result, ${result.worker}, ${result}`);
     workerCount--;
-    if (workerCount == 0 && maxWorkers){
+    if (workerCount == 0 && workers.size == maxWorkers){
       console.log('Received all results');
       break;
     }
