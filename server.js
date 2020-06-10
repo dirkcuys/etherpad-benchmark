@@ -122,8 +122,8 @@ async function runServer(bindAddress, etherpadServer){
       console.log(`${new Date().toISOString()}, Maximum workers limit reached, not accepting new connections`);
       return sock.close();
     } else {
-      // wait for 200 - 400 ms
-      let delay = new Promise(resolve => setTimeout(resolve, Math.round(200 + Math.random()*200) ));
+      // wait for ~200 ms
+      let delay = new Promise(resolve => setTimeout(resolve, Math.round(1 + Math.random()*200) ));
       return delay.then(() => sock.receive().then(workQueue));
     }
   };
