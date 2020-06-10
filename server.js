@@ -130,8 +130,8 @@ async function runServer(bindAddress, etherpadServer){
   console.log('waiting for results');
   for await (const [msg] of rSock) {
     var result = msg.toString();
-    let {worker} = JSON.parse(result);
-    console.log(`${new Date().toISOString()}, result, ${worker}, ${result}`);
+    let {worker, loadTime, characterCount, error} = JSON.parse(result);
+    console.log(`${new Date().toISOString()}, result, ${[worker, loadTime, characterCount, error].join(', ')}`);
     workerCount--;
     if (workerCount == 0 && workers.size == maxWorkers){
       console.log('Received all results');
