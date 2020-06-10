@@ -123,8 +123,8 @@ async function runServer(bindAddress, etherpadServer){
       return sock.close();
     } else {
       // wait for 200 - 400 ms
-      await new Promise(resolve => setTimeout(resolve, Math.round(200 + Math.random()*200) ));
-      return sock.receive().then(workQueue);
+      let delay = new Promise(resolve => setTimeout(resolve, Math.round(200 + Math.random()*200) ));
+      return delay.then(() => sock.receive().then(workQueue));
     }
   };
   let workerQueueDone = sock.receive().then(workQueue);
