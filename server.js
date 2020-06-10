@@ -133,7 +133,7 @@ async function runServer(bindAddress, etherpadServer){
   for await (const [msg] of rSock) {
     var result = msg.toString();
     let {worker, loadTime, characterCount, error} = JSON.parse(result);
-    let pad = workers[worker].url;
+    let pad = workers.get(worker).url;
     console.log(`${new Date().toISOString()}, result, ${[worker, pad, loadTime, characterCount, error].join(', ')}`);
     workerCount--;
     if (workerCount == 0 && workers.size == maxWorkers){
