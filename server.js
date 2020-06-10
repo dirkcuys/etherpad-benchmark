@@ -122,6 +122,8 @@ async function runServer(bindAddress, etherpadServer){
       console.log(`${new Date().toISOString()}, Maximum workers limit reached, not accepting new connections`);
       return sock.close();
     } else {
+      // wait for 200 - 400 ms
+      await new Promise(resolve => setTimeout(resolve, Math.round(200 + Math.random()*200) ));
       return sock.receive().then(workQueue);
     }
   };
@@ -131,7 +133,8 @@ async function runServer(bindAddress, etherpadServer){
   for await (const [msg] of rSock) {
     var result = msg.toString();
     let {worker, loadTime, characterCount, error} = JSON.parse(result);
-    console.log(`${new Date().toISOString()}, result, ${[worker, loadTime, characterCount, error].join(', ')}`);
+    let pad = workers[worker].url;
+    console.log(`${new Date().toISOString()}, result, ${[worker, pad, loadTime, characterCount, error].join(', ')}`);
     workerCount--;
     if (workerCount == 0 && workers.size == maxWorkers){
       console.log('Received all results');
