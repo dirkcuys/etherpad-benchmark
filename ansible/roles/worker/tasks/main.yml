@@ -1,0 +1,13 @@
+- name: Copy system unit file
+  template: src=worker@.service dest=/usr/lib/systemd/system/worker@.service
+
+- name: worker system user
+  user: name=worker
+
+- name: start systemd service for worker
+  systemd:
+    daemon_reload: yes
+    enabled: yes
+    state: restarted
+    name: "worker@{{item}}"
+  with_sequence: start=1 end={{worker_count}}

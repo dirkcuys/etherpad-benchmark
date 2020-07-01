@@ -1,0 +1,11 @@
+---
+- hosts: master
+  become: yes
+  become_user: root
+  gather_facts: true
+  #vars_files:
+  #  - vars/cc.yml
+  roles:
+    - code
+  vars:
+    domain: "none"

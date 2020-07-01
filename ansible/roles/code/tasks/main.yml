@@ -1,0 +1,42 @@
+---
+- name: install apt packages
+  apt: 
+    state: latest
+    update_cache: yes
+    pkg:
+    - nodejs
+    - npm
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - gnupg-agent
+    - software-properties-common
+
+- name: Add google repo key
+  apt_key:
+    url: https://dl-ssl.google.com/linux/linux_signing_key.pub
+    id: 4CCA1EAF950CEE4AB83976DCA040830F7FAC5991
+    state: present
+
+- name: Add google repository
+  apt_repository:
+    repo: "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main"
+    state: present
+
+- name: Install chrome
+  apt:
+    pkg: [google-chrome-stable]
+    state: latest
+    update_cache: yes
+    install_recommends: no
+
+- name: get code form git
+  git:
+    dest: /app/location
+    repo: https://github.com/dirkcuys/etherpad-benchmark.git
+    version: master
+
+- name: Update packages based on package.json to their latest version.
+  npm:
+    path: /app/location
+    state: latest

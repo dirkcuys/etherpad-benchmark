@@ -1,0 +1,13 @@
+---
+- hosts: workers
+  become: yes
+  become_user: root
+  gather_facts: true
+  vars_files:
+    - vars/workers.yml
+  roles:
+    - code
+    - worker
+  vars:
+    domain: "none"
+    worker_count: 4

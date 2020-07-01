@@ -1,0 +1,13 @@
+[Unit]
+Description="Etherpad load test worker"
+
+[Service]
+Type=simple
+User=worker
+Group=worker
+WorkingDirectory=/app/location
+ExecStart=/usr/bin/node /app/location/worker.js -b {{master_ip}}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
