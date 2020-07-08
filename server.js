@@ -109,7 +109,7 @@ async function runServer(bindAddress, etherpadServer){
   let workerCount = 0;
 
   // Create a promise chain to handle new workers
-  let workQueue = msg => {
+  let workQueue = async msg => {
     var topic = msg.toString();
     workerCount++;
     console.log(`${new Date().toISOString()}, connected, ${topic}, ${workerCount}`);
@@ -117,14 +117,14 @@ async function runServer(bindAddress, etherpadServer){
     // Pick a pad
     let url = Object.keys(pads)[Math.floor(Math.random() * Object.keys(pads).length)];
     workers.set(topic, {url});
-    sock.send(JSON.stringify({url}));
+    await sock.send(JSON.stringify({url}));
     if (maxWorkers && workers.size >= maxWorkers) {
-      console.log(`${new Date().toISOString()}, Maximum workers limit reached, not accepting new connections`);
+      console.log(`${new Date().toISOString()}, server done`);
       return sock.close();
     } else {
       // wait for ~200 ms
-      let delay = new Promise(resolve => setTimeout(resolve, Math.round(1 + Math.random()*200) ));
-      return delay.then(() => sock.receive().then(workQueue));
+      await new Promise(resolve => setTimeout(resolve, Math.round(1 + Math.random()*200) ));
+      return sock.receive().then(workQueue);
     }
   };
   let workerQueueDone = sock.receive().then(workQueue);
